@@ -1,9 +1,9 @@
-
 import { useState, useRef } from "react";
 import { Upload, Camera, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface AnalysisResult {
   metrics: {
@@ -114,8 +114,16 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
   const analyzeVideo = async (file: File) => {
     setIsAnalyzing(true);
     try {
-      const analysisResult = await simulateVideoAnalysis();
-      onVideoSubmit(analysisResult);
+      const formData = new FormData();
+      formData.append('video', file);
+
+      const { data, error } = await supabase.functions.invoke('analyze-video', {
+        body: formData
+      });
+
+      if (error) throw error;
+
+      onVideoSubmit(data);
       toast.success("Video analysis completed!");
     } catch (error) {
       console.error("Analysis error:", error);
