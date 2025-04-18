@@ -1,13 +1,44 @@
-
 import { useState, useRef } from "react";
 import { Upload, Camera, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "sonner";
 
-const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (file: File) => void }) => {
+export interface AnalysisResult {
+  metrics: {
+    posture: number;
+    confidence: number;
+    eyeContact: number;
+  };
+  sections: {
+    posture: Array<{
+      title: string;
+      content: string;
+      type: "info" | "success" | "warning";
+    }>;
+    confidence: Array<{
+      title: string;
+      content: string;
+      type: "info" | "success" | "warning";
+    }>;
+    eyeContact: Array<{
+      title: string;
+      content: string;
+      type: "info" | "success" | "warning";
+    }>;
+    overall: Array<{
+      title: string;
+      content: string;
+      type: "info" | "success" | "warning";
+    }>;
+  };
+}
+
+const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult) => void }) => {
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -79,6 +110,156 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (file: File) => void }) 
     }
   };
 
+  const analyzeVideo = async (file: File) => {
+    setIsAnalyzing(true);
+    try {
+      const analysisResult = await simulateVideoAnalysis();
+      onVideoSubmit(analysisResult);
+      toast.success("Video analysis completed!");
+    } catch (error) {
+      console.error("Analysis error:", error);
+      toast.error("Failed to analyze video");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const simulateVideoAnalysis = async (): Promise<AnalysisResult> => {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const getRandomScore = () => Math.floor(Math.random() * 36) + 60;
+
+    const posture = getRandomScore();
+    const confidence = getRandomScore();
+    const eyeContact = getRandomScore();
+
+    const getAnalysisType = (score: number): "success" | "warning" | "info" => {
+      if (score >= 80) return "success";
+      if (score >= 70) return "warning";
+      return "info";
+    };
+
+    const generateFeedback = (category: string, score: number) => {
+      const type = getAnalysisType(score);
+      const strength = score >= 80 ? "strong" : score >= 70 ? "moderate" : "needs improvement";
+      
+      return [
+        {
+          title: `${category} Overview`,
+          content: `Your ${category.toLowerCase()} shows ${strength} performance with a score of ${score}%.`,
+          type
+        },
+        {
+          title: `Key Observations`,
+          content: generateKeyObservation(category, score),
+          type
+        },
+        {
+          title: `Improvement Tips`,
+          content: generateImprovementTip(category, score),
+          type: "info"
+        }
+      ];
+    };
+
+    return {
+      metrics: {
+        posture,
+        confidence,
+        eyeContact
+      },
+      sections: {
+        posture: generateFeedback("Posture", posture),
+        confidence: generateFeedback("Confidence", confidence),
+        eyeContact: generateFeedback("Eye Contact", eyeContact),
+        overall: [
+          {
+            title: "Overall Performance",
+            content: `Your presentation shows ${calculateOverallPerformance([posture, confidence, eyeContact])} results with an average score of ${Math.floor((posture + confidence + eyeContact) / 3)}%.`,
+            type: getAnalysisType(Math.floor((posture + confidence + eyeContact) / 3))
+          },
+          {
+            title: "Key Strengths",
+            content: generateStrengths([posture, confidence, eyeContact]),
+            type: "success"
+          },
+          {
+            title: "Areas for Improvement",
+            content: generateWeaknesses([posture, confidence, eyeContact]),
+            type: "info"
+          }
+        ]
+      }
+    };
+  };
+
+  const generateKeyObservation = (category: string, score: number): string => {
+    const observations = {
+      Posture: [
+        "Excellent upright position maintained throughout.",
+        "Generally good posture with occasional slouching.",
+        "Frequent shifting and inconsistent posture noticed."
+      ],
+      Confidence: [
+        "Strong, assured presence throughout the presentation.",
+        "Showed confidence with room for improvement.",
+        "Signs of nervousness apparent in delivery."
+      ],
+      "Eye Contact": [
+        "Consistent and engaging eye contact maintained.",
+        "Moderate eye contact with occasional avoidance.",
+        "Limited eye contact, often looking away."
+      ]
+    };
+    
+    const index = score >= 80 ? 0 : score >= 70 ? 1 : 2;
+    return observations[category as keyof typeof observations][index];
+  };
+
+  const generateImprovementTip = (category: string, score: number): string => {
+    const tips = {
+      Posture: [
+        "Keep up the great posture! Try varying your stance occasionally.",
+        "Practice standing straight while presenting. Set reminders to check your posture.",
+        "Focus on keeping your shoulders back and spine straight. Consider recording practice sessions."
+      ],
+      Confidence: [
+        "Continue building on your confident delivery. Try new presentation techniques.",
+        "Take deep breaths before speaking. Practice power poses before presentations.",
+        "Start with small group presentations to build confidence. Record and review your presentations."
+      ],
+      "Eye Contact": [
+        "Excellent eye contact! Try varying your gaze pattern more.",
+        "Practice maintaining eye contact for longer periods. Use the triangle technique.",
+        "Focus on looking at different areas of your audience. Practice with friends."
+      ]
+    };
+    
+    const index = score >= 80 ? 0 : score >= 70 ? 1 : 2;
+    return tips[category as keyof typeof tips][index];
+  };
+
+  const calculateOverallPerformance = (scores: number[]): string => {
+    const average = scores.reduce((a, b) => a + b, 0) / scores.length;
+    if (average >= 80) return "excellent";
+    if (average >= 70) return "good";
+    return "fair";
+  };
+
+  const generateStrengths = (scores: number[]): string => {
+    const categories = ["posture", "confidence", "eye contact"];
+    const strengths = categories.filter((_, i) => scores[i] >= 75);
+    if (strengths.length === 0) return "Shows potential for improvement across all areas.";
+    return `Strong performance in ${strengths.join(" and ")}.`;
+  };
+
+  const generateWeaknesses = (scores: number[]): string => {
+    const categories = ["posture", "confidence", "eye contact"];
+    const weaknesses = categories.filter((_, i) => scores[i] < 75);
+    if (weaknesses.length === 0) return "No significant areas of concern. Focus on maintaining consistency.";
+    return `Focus on improving ${weaknesses.join(" and ")}.`;
+  };
+
   return (
     <Card className="w-full max-w-3xl mx-auto shadow-md">
       <CardContent className="p-6">
@@ -112,7 +293,14 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (file: File) => void }) 
                 accept="video/*"
                 className="hidden"
                 ref={fileInputRef}
-                onChange={handleFileUpload}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const url = URL.createObjectURL(file);
+                    setVideoSrc(url);
+                    analyzeVideo(file);
+                  }
+                }}
               />
             </div>
           ) : (
@@ -138,9 +326,21 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (file: File) => void }) 
                     <X className="h-4 w-4 mr-2" />
                     Clear
                   </Button>
-                  <Button onClick={() => onVideoSubmit(new File([], "dummy.mp4"))}>
-                    <Play className="h-4 w-4 mr-2" />
-                    Analyze Video
+                  <Button 
+                    onClick={() => analyzeVideo(new File([], "video.mp4"))}
+                    disabled={isAnalyzing}
+                  >
+                    {isAnalyzing ? (
+                      <>
+                        <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-4 w-4 mr-2" />
+                        Analyze Video
+                      </>
+                    )}
                   </Button>
                 </div>
               ) : recordedChunks.length > 0 ? (
