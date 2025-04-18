@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { Upload, Camera, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,7 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
     if (file) {
       const url = URL.createObjectURL(file);
       setVideoSrc(url);
-      onVideoSubmit(file);
+      analyzeVideo(file);
     }
   };
 
@@ -98,7 +99,7 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
     setVideoSrc(url);
     
     const file = new File([blob], "recording.webm", { type: "video/webm" });
-    onVideoSubmit(file);
+    analyzeVideo(file);
     
     setRecordedChunks([]);
   };
@@ -157,7 +158,7 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
         {
           title: `Improvement Tips`,
           content: generateImprovementTip(category, score),
-          type: "info"
+          type: "info" as const
         }
       ];
     };
@@ -181,12 +182,12 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
           {
             title: "Key Strengths",
             content: generateStrengths([posture, confidence, eyeContact]),
-            type: "success"
+            type: "success" as const
           },
           {
             title: "Areas for Improvement",
             content: generateWeaknesses([posture, confidence, eyeContact]),
-            type: "info"
+            type: "info" as const
           }
         ]
       }
@@ -293,14 +294,7 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
                 accept="video/*"
                 className="hidden"
                 ref={fileInputRef}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const url = URL.createObjectURL(file);
-                    setVideoSrc(url);
-                    analyzeVideo(file);
-                  }
-                }}
+                onChange={handleFileUpload}
               />
             </div>
           ) : (
