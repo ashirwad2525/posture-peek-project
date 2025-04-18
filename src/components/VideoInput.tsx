@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { Upload, Camera, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,7 +51,6 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
     if (file) {
       const url = URL.createObjectURL(file);
       setVideoSrc(url);
-      analyzeVideo(file);
     }
   };
 
@@ -76,6 +76,7 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
       setIsRecording(true);
     } catch (error) {
       console.error("Error accessing camera:", error);
+      toast.error("Could not access your camera. Please check permissions.");
     }
   };
 
@@ -97,9 +98,6 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
     const blob = new Blob(recordedChunks, { type: "video/webm" });
     const url = URL.createObjectURL(blob);
     setVideoSrc(url);
-    
-    const file = new File([blob], "recording.webm", { type: "video/webm" });
-    analyzeVideo(file);
     
     setRecordedChunks([]);
   };
@@ -127,7 +125,11 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
       toast.success("Video analysis completed!");
     } catch (error) {
       console.error("Analysis error:", error);
-      toast.error("Failed to analyze video");
+      
+      // Fallback to mock data if the edge function fails
+      toast.error("Analysis service unavailable. Using sample data instead.");
+      const mockData = await simulateVideoAnalysis();
+      onVideoSubmit(mockData);
     } finally {
       setIsAnalyzing(false);
     }
@@ -329,7 +331,30 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
                     Clear
                   </Button>
                   <Button 
-                    onClick={() => analyzeVideo(new File([], "video.mp4"))}
+                    onClick={() => {
+                      // Get the actual video file
+                      if (fileInputRef.current?.files?.[0]) {
+                        analyzeVideo(fileInputRef.current.files[0]);
+                      } else if (recordedChunks.length > 0) {
+                        const blob = new Blob(recordedChunks, { type: "video/webm" });
+                        const file = new File([blob], "recording.webm", { type: "video/webm" });
+                        analyzeVideo(file);
+                      } else {
+                        // Create a dummy file for testing if no real file is available
+                        fetch(videoSrc || "")
+                          .then(res => res.blob())
+                          .then(blob => {
+                            const file = new File([blob], "video.mp4", { type: "video/mp4" });
+                            analyzeVideo(file);
+                          })
+                          .catch(err => {
+                            console.error("Error creating file from video source:", err);
+                            // Fallback to an empty file if we can't get the blob
+                            const emptyFile = new File([new Blob()], "empty.mp4", { type: "video/mp4" });
+                            analyzeVideo(emptyFile);
+                          });
+                      }
+                    }}
                     disabled={isAnalyzing}
                   >
                     {isAnalyzing ? (
