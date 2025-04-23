@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { Upload, Camera, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,6 +40,7 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
   const [isRecording, setIsRecording] = useState(false);
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -111,9 +111,12 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
 
   const analyzeVideo = async (file: File) => {
     setIsAnalyzing(true);
+    setIsLoading(true);
     try {
       const formData = new FormData();
       formData.append('video', file);
+
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       const { data, error } = await supabase.functions.invoke('analyze-video', {
         body: formData
@@ -126,12 +129,12 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
     } catch (error) {
       console.error("Analysis error:", error);
       
-      // Fallback to mock data if the edge function fails
       toast.error("Analysis service unavailable. Using sample data instead.");
       const mockData = await simulateVideoAnalysis();
       onVideoSubmit(mockData);
     } finally {
       setIsAnalyzing(false);
+      setIsLoading(false);
     }
   };
 
@@ -277,7 +280,12 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
         <div className="flex flex-col items-center">
           <h2 className="text-2xl font-semibold mb-6 text-center">Upload or Record Your Video</h2>
           
-          {!videoSrc && !isRecording ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center w-full h-64">
+              <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+              <span className="ml-4 text-gray-600">Analyzing your video...</span>
+            </div>
+          ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
               <Button 
                 onClick={() => fileInputRef.current?.click()} 
@@ -306,77 +314,6 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
                 ref={fileInputRef}
                 onChange={handleFileUpload}
               />
-            </div>
-          ) : (
-            <div className="w-full relative">
-              <video 
-                ref={videoRef}
-                src={isRecording ? undefined : videoSrc || undefined}
-                className="w-full rounded-lg border border-gray-200"
-                controls={!isRecording}
-                autoPlay={isRecording}
-                muted={isRecording}
-              />
-              
-              {isRecording ? (
-                <div className="flex justify-center gap-4 mt-4">
-                  <Button variant="destructive" onClick={stopRecording}>
-                    Stop Recording
-                  </Button>
-                </div>
-              ) : videoSrc ? (
-                <div className="flex justify-end gap-2 mt-4">
-                  <Button variant="outline" onClick={clearVideo}>
-                    <X className="h-4 w-4 mr-2" />
-                    Clear
-                  </Button>
-                  <Button 
-                    onClick={() => {
-                      // Get the actual video file
-                      if (fileInputRef.current?.files?.[0]) {
-                        analyzeVideo(fileInputRef.current.files[0]);
-                      } else if (recordedChunks.length > 0) {
-                        const blob = new Blob(recordedChunks, { type: "video/webm" });
-                        const file = new File([blob], "recording.webm", { type: "video/webm" });
-                        analyzeVideo(file);
-                      } else {
-                        // Create a dummy file for testing if no real file is available
-                        fetch(videoSrc || "")
-                          .then(res => res.blob())
-                          .then(blob => {
-                            const file = new File([blob], "video.mp4", { type: "video/mp4" });
-                            analyzeVideo(file);
-                          })
-                          .catch(err => {
-                            console.error("Error creating file from video source:", err);
-                            // Fallback to an empty file if we can't get the blob
-                            const emptyFile = new File([new Blob()], "empty.mp4", { type: "video/mp4" });
-                            analyzeVideo(emptyFile);
-                          });
-                      }
-                    }}
-                    disabled={isAnalyzing}
-                  >
-                    {isAnalyzing ? (
-                      <>
-                        <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                        Analyzing...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="h-4 w-4 mr-2" />
-                        Analyze Video
-                      </>
-                    )}
-                  </Button>
-                </div>
-              ) : recordedChunks.length > 0 ? (
-                <div className="flex justify-center gap-4 mt-4">
-                  <Button onClick={saveRecording}>
-                    Save Recording
-                  </Button>
-                </div>
-              ) : null}
             </div>
           )}
         </div>
