@@ -1,10 +1,10 @@
-
 import { useState, useRef } from "react";
 import { Upload, Camera, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { AnalysisResult } from "./VideoInput";
 
 export interface AnalysisResult {
   metrics: {
@@ -46,11 +46,43 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const uploadVideoToSupabase = async (file: File): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from('videos')
+        .upload(filePath, file);
+
+      if (error) {
+        throw error;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('videos')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Error uploading video:', error);
+      toast.error('Failed to upload video');
+      return null;
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const url = URL.createObjectURL(file);
       setVideoSrc(url);
+      
+      const uploadedUrl = await uploadVideoToSupabase(file);
+      if (!uploadedUrl) {
+        toast.error('Failed to upload video');
+        return;
+      }
     }
   };
 
@@ -92,12 +124,19 @@ const VideoInput = ({ onVideoSubmit }: { onVideoSubmit: (result: AnalysisResult)
     setIsRecording(false);
   };
 
-  const saveRecording = () => {
+  const saveRecording = async () => {
     if (recordedChunks.length === 0) return;
     
     const blob = new Blob(recordedChunks, { type: "video/webm" });
     const url = URL.createObjectURL(blob);
     setVideoSrc(url);
+    
+    const file = new File([blob], "recording.webm", { type: "video/webm" });
+    const uploadedUrl = await uploadVideoToSupabase(file);
+    if (!uploadedUrl) {
+      toast.error('Failed to save recording');
+      return;
+    }
     
     setRecordedChunks([]);
   };
